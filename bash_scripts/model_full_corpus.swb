@@ -1,0 +1,8 @@
+#!/bin/bash
+#SBATCH --job-name="model_full_corpus"
+#SBATCH --output="model_full_corpus.%j.%N.out"
+#SBATCH --error="model_full_corpus.%j.%N.err"
+#SBATCH --partition=gpux1
+#SBATCH --time=24
+
+python /home/ashokan2/literary_periods/scripts/Model.py --corpus_type full_corpus --run_model False --top_descriptors 500 --calculate_pca False --create_pca_graph True

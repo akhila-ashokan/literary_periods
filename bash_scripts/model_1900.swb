@@ -1,0 +1,8 @@
+#!/bin/bash
+#SBATCH --job-name="model_1900"
+#SBATCH --output="model_1900.%j.%N.out"
+#SBATCH --error="model_1900.%j.%N.err"
+#SBATCH --partition=gpux1
+#SBATCH --time=24
+
+python /home/ashokan2/literary_periods/scripts/Model.py --corpus_type 1900 --run_model False --top_descriptors 500 --calculate_pca False --create_pca_graph True

@@ -1,0 +1,8 @@
+#!/bin/bash
+#SBATCH --job-name="corpus_1800"
+#SBATCH --output="corpus_1800.%j.%N.out"
+#SBATCH --error="corpus_1800.%j.%N.err"
+#SBATCH --partition=gpux1
+#SBATCH --time=24
+
+python /home/ashokan2/literary_periods/scripts/Corpus.py --corpus_type 1800 --tokenize False --process False --save_context_windows False --save_descriptors False --apply_descriptor_threshold False --descriptor_threshold 30 --calculate_PAI False --save_random_sentences True
