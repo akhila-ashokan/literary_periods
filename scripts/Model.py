@@ -40,11 +40,13 @@ class Model:
         self.random_sentences_path = '../data/' + args.corpus_type + '/random_sentences.pickle'
         self.random_contexts_path = '../data/' + args.corpus_type + '/random_contexts.pickle'
         self.random_seed_words_path = '../data/' + args.corpus_type + '/random_seed_words.pickle'
-        self.pca_visual_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_pca_plot_' + str(self.top_descriptors) + '.html'
-        self.pca_visual_pdf = '../data/' + args.corpus_type + '/' + args.corpus_type + '_pca_plot_' + str(self.top_descriptors) + '.pdf'
+        self.pca_visual_path = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pca_plot_' + str(self.top_descriptors) + '.html'
+        self.pca_visual_pdf = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pca_plot_' + str(self.top_descriptors) + '.pdf'
         self.all_top_descriptors_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_all_top_descriptors_' + str(self.top_descriptors) + '.pickle'
+        self.top_xs_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_top_xs_' + str(self.top_descriptors) + '.pickle'
+        self.top_ys_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_top_ys_' + str(self.top_descriptors) + '.pickle'
         
-        self.context_windows = []   
+        self.context_windows =  {'sight': [], 'hear': [], 'touch': [], 'taste': [], 'smell': []}
         self.descriptors = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.filtered_descriptors =  {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.word_freq = {}
@@ -71,7 +73,8 @@ class Model:
     def train_model(self,):
         start_time = time.time()
         self.context_windows = self.read_file(self.context_windows_path)
-        model = gensim.models.Word2Vec(self.context_windows, min_count=1, epochs=30, window=5, vector_size=200, workers=4, sg=0)
+        context_windows_by_sense = sum(self.context_windows.values(), [])
+        model = gensim.models.Word2Vec(context_windows_by_sense, min_count=1, epochs=30, window=5, vector_size=200, workers=4, sg=0)
         model.save(self.model_path)
         end_time = time.time()
         logging.info(end_time - start_time)     
@@ -235,6 +238,8 @@ class Model:
 
         top_xs = principleDf.iloc[top_indices, :].loc[:, 'Principal Component 1']
         top_ys = principleDf.iloc[top_indices, :].loc[:, 'Principal Component 2']
+        self.save_file(top_xs, self.top_xs_path)
+        self.save_file(top_ys, self.top_ys_path)
         return top_xs, top_ys
     
     def create_visual(self, top_xs, top_descriptors, principleDf, top_indices):

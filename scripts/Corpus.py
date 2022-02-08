@@ -42,7 +42,7 @@ class Corpus:
         self.pai_scatterplot_path = '../data/' + args.corpus_type + '/pai_scatterplot.html'
         self.pai_histogram_path = '../data/' + args.corpus_type + '/pai_histogram.html'
         
-        self.context_windows = []   
+        self.context_windows = {'sight': [], 'hear': [], 'touch': [], 'taste': [], 'smell': []}
         self.descriptors = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.filtered_descriptors =  {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.word_freq = {}
@@ -134,8 +134,9 @@ class Corpus:
     def add_to_context_windows(self, cw_df_path):
         start_time = time.time()
         cw_df = self.read_file(cw_df_path)
-        text_context_windows = [window for index, window in cw_df['context_window'].items() if window]
-        self.context_windows = self.context_windows + text_context_windows
+        for modality in self.modalities: 
+            text_context_windows = [row['context_window'] for index, row in cw_df.iterrows() if row['context_window'] and row['sense_name'] == modality]
+            self.context_windows[modality] = self.context_windows[modality] + text_context_windows
         end_time = time.time()
         logging.info(end_time - start_time)
         
