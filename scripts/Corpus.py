@@ -39,8 +39,11 @@ class Corpus:
         self.random_sentences_path = '../data/' + args.corpus_type + '/random_sentences.pickle'
         self.random_contexts_path = '../data/' + args.corpus_type + '/random_contexts.pickle'
         self.random_seed_words_path = '../data/' + args.corpus_type + '/random_seed_words.pickle'
-        self.pai_scatterplot_path = '../data/' + args.corpus_type + '/pai_scatterplot.html'
-        self.pai_histogram_path = '../data/' + args.corpus_type + '/pai_histogram.html'
+        self.pai_scatterplot_path = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pai_scatterplot.html'
+        self.pai_histogram_path = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pai_histogram.html'
+        self.tf_path = '../data/' + args.corpus_type + '/tf.pickle'
+        self.idf_path = '../data/' + args.corpus_type + '/idf.pickle'
+        self.tf_idf_path = '../data/' + args.corpus_type + '/tf_idf.pickle'
         
         self.context_windows = {'sight': [], 'hear': [], 'touch': [], 'taste': [], 'smell': []}
         self.descriptors = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
@@ -50,6 +53,10 @@ class Corpus:
         self.random_sentences =  {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.random_contexts = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.random_seed_words = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
+        self.tf = {}
+        self.idf = {}
+        self.tf_idf = {}
+        
        
     def read_file(self, input_path):
         logging.info('Opened: ' + input_path)
@@ -107,18 +114,18 @@ class Corpus:
         # rerun with if statement to check if context exists or not 
         window_size = 4
         punct = ['.', ',', ':', ';', '"', '!', "?"]
-        ok_pos = ['ADJ', 'ADV', 'NOUN', 'PROPN', 'VERB']
+        ok_pos = ['ADJ', 'ADV', 'NOUN', 'VERB']
         start_time = time.time()
         text = self.read_file(tokenized_path)
         doc_process_df = pd.DataFrame(columns = ['sense_name', 'seed_word', 'context_window', 'sentence'])
 
         for i, sent in enumerate(text):
             for j, word in enumerate(sent):
-                if word[0] in self.seed_words['word'].tolist():
+                if word in self.seed_words['seed_word'].tolist():
                     start = max(j - window_size, 0)
                     end = min(j + window_size + 1 , len(sent)) 
                     context = [sent[k] for k in range(start, end) if k != j and sent[k][0] not in stopwords and sent[k][0] not in punct and re.search("[A-Za-z]", sent[k][0]) and sent[k][1] in ok_pos]
-                    doc_process_df = doc_process_df.append({'sense_name': self.seed_words.loc[self.seed_words['word'] == word[0], 'sense_name'].iloc[0],
+                    doc_process_df = doc_process_df.append({'sense_name': self.seed_words.loc[self.seed_words['seed_word'] == word, 'sense_name'].iloc[0],
                                                             'seed_word' : word,
                                                             'context_window' : context,
                                                             'sentence': sent}, ignore_index = True)
@@ -144,7 +151,6 @@ class Corpus:
         vfunct = np.vectorize(self.add_to_descriptors)
         vfunct(self.corpus_df.cw_df_path)   
         self.save_file(self.descriptors, self.descriptors_path)
-        self.save_file(self.word_freq, self.word_freq_path)
         
     def add_to_descriptors(self, cw_df_path):
         start_time = time.time()
@@ -155,14 +161,6 @@ class Corpus:
         
     def count_descriptors(self,row):
         for word in row['context_window']:
-            
-            # update word frequencey dictionary 
-            if word in self.word_freq:
-                self.word_freq[word] += 1
-            else:
-                self.word_freq[word] = 1
-                
-            # update descriptors 
             if word in self.descriptors[row['sense_name']]:
                 self.descriptors[row['sense_name']][word] += 1
             else:
@@ -176,6 +174,7 @@ class Corpus:
         
         for modality, descriptor_dict in descriptors.items():
             logging.info('Length of descriptor list for ' + modality + ': ' +  str(len(descriptors[modality])))
+            logging.info(set(list(descriptor_dict.values())))
             for word, count in descriptor_dict.items():
                 if count not in counts:
                     counts.append(count)
@@ -190,7 +189,7 @@ class Corpus:
     def calculate_PAI(self,):
         start_time = time.time()
         filtered_descriptors = self.read_file(self.filtered_descriptors_path)
-        word_freq = self.read_file(self.word_freq_path)
+        word_freq = self.calculate_word_freq()
         
         for modality, descriptor_dict in filtered_descriptors.items():
             for word, count in descriptor_dict.items():
@@ -200,7 +199,22 @@ class Corpus:
         self.pai_df = self.pai_df.sort_values(by=['PAI'], ascending=False)
         self.save_file(self.pai_df, self.pai_df_path)
         end_time = time.time()
-        logging.info(end_time - start_time)        
+        logging.info(end_time - start_time)       
+        
+    def calculate_word_freq(self,):
+        vfunct = np.vectorize(self.count_words)
+        vfunct(self.corpus_df.tokenized_path)   
+        self.save_file(self.word_freq, self.word_freq_path)
+        return self.word_freq
+        
+    def count_words(self, tokenized_path):
+        text = self.read_file(tokenized_path)
+        for i, sent in enumerate(text):
+            for j, word in enumerate(sent):
+                if word in self.word_freq:
+                    self.word_freq[word] += 1
+                else:
+                    self.word_freq[word] = 1
 
     def create_PAI_visuals(self,):
         pai = self.read_file(self.pai_df_path)
@@ -213,7 +227,6 @@ class Corpus:
 
 
     def save_random_sentences(self,):
-        
         # shuffle dataset
         self.corpus_df = shuffle(self.corpus_df)
         self.corpus_df.reset_index(inplace=True, drop=True)
@@ -256,8 +269,50 @@ class Corpus:
                         self.random_sentences[modality][word] = [row['sentence']]
                         self.random_seed_words[modality][word] = [row['seed_word']]
                         self.random_contexts[modality][word] = [row['context_window']]
-
-    
+                        
+    def calculate tf_idf(self,):
+        vfunct = np.vectorize(self.calculate_tf)
+        vfunct(self.corpus_df.tokenized_path)
+        self.save_file(self.tf, self.tf_path)
+        
+        vfunct = np.vectorize(self.calculate_idf)
+        vfunct(self.corpus_df.tokenized_path)
+        self.idf = {key:np.log2(self.corpus_df.tokenized_path.size()/value) for key, value in self.idf.items()}
+        self.save_file(self.idf, self.idf_path)
+        
+        for tokenized_path, document_dict in self.tf:
+            document_tf_idf = {}
+            for word, tf in document_dict.items():
+                document_tf_idf[word] = tf * self.idf[word]
+            self.tf_idf[tokenized_path] = document_tf_idf
+        self.save_file(self.tf_idf, self.tf_idf_path)
+        
+    def calculate_tf(self, tokenized_path):
+        text = self.read_file(tokenized_path)
+        counter = {}
+        total_words = 0 
+        for i, sent in enumerate(text):
+            for j, word in enumerate(sent):
+                total_words += 1
+                if word in counter: 
+                    counter[word] += 1
+                else:
+                    counter[word] = 1
+                  
+        counter = {key:value/total_words for key, value in counter.items()}
+        self.tf[tokenized_path] = counter
+        
+    def calculate_idf(self,tokenized_path):
+        self.idf = {key:1 for key, value in self.tf.items()}
+        text = self.read_file(tokenized_path)
+        visited_words = []
+        for key, value in self.idf:
+            words = [word for sent in text for word in sent]
+            if value in words and value not in visited_words:
+                visited_words.append(value)
+                self.idf[value] += 1 
+                
+                
 def main(args):
     corpus = Corpus(args)
     if args.tokenize == 'True':
@@ -284,6 +339,9 @@ def main(args):
     if args.save_random_sentences == 'True':
         logging.info('--Saving random_sentences--')
         corpus.save_random_sentences() 
+    if args.calculate_tf_idf == 'True':
+        logging.info('--Calculate TF-TDF--')
+        corpus.calculate_tf_idf()
 
     
 if __name__=='__main__':
