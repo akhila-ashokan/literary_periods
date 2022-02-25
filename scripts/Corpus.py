@@ -270,18 +270,19 @@ class Corpus:
                         self.random_seed_words[modality][word] = [row['seed_word']]
                         self.random_contexts[modality][word] = [row['context_window']]
                         
-    def calculate tf_idf(self,):
+    def calculate_tf_idf(self,):
         vfunct = np.vectorize(self.calculate_tf)
         vfunct(self.corpus_df.tokenized_path)
         self.save_file(self.tf, self.tf_path)
         
         vfunct = np.vectorize(self.calculate_idf)
         vfunct(self.corpus_df.tokenized_path)
-        self.idf = {key:np.log2(self.corpus_df.tokenized_path.size()/value) for key, value in self.idf.items()}
+        self.idf = {key:np.log2(self.corpus_df.tokenized_path.size/value) for key, value in self.idf.items()}
         self.save_file(self.idf, self.idf_path)
+
         
-        for tokenized_path, document_dict in self.tf:
-            document_tf_idf = {}
+        for tokenized_path, document_dict in self.tf.items():
+            document_tf_idf = {k:0 for k, v in document_dict.items()}
             for word, tf in document_dict.items():
                 document_tf_idf[word] = tf * self.idf[word]
             self.tf_idf[tokenized_path] = document_tf_idf
@@ -302,15 +303,16 @@ class Corpus:
         counter = {key:value/total_words for key, value in counter.items()}
         self.tf[tokenized_path] = counter
         
-    def calculate_idf(self,tokenized_path):
-        self.idf = {key:1 for key, value in self.tf.items()}
+    def calculate_idf(self, tokenized_path):
         text = self.read_file(tokenized_path)
+        words = [word for sent in text for word in sent]
         visited_words = []
-        for key, value in self.idf:
-            words = [word for sent in text for word in sent]
-            if value in words and value not in visited_words:
-                visited_words.append(value)
-                self.idf[value] += 1 
+        for word in words: 
+            visited_words.append(word)
+            if word in self.idf:
+                self.idf[word] += 1 
+            else:
+                self.idf[word] = 1 
                 
                 
 def main(args):
@@ -356,5 +358,6 @@ if __name__=='__main__':
     parser.add_argument('--calculate_PAI', type=str, default='False', help='calculate PAI value')
     parser.add_argument('--create_PAI_visuals', type=str, default='False', help='create PAI visuals')
     parser.add_argument('--save_random_sentences', type=str, default='False', help='save random sentences')
+    parser.add_argument('--calculate_tf_idf', type=str, default='False', help='calculate tf idf')
     args = parser.parse_args()
     main(args)    
