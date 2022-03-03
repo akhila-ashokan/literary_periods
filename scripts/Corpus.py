@@ -8,6 +8,7 @@ from nltk.tokenize import sent_tokenize
 from os.path import exists
 import plotly.express as px
 from sklearn.utils import shuffle
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 ## TODO: Add timing decorator 
 
@@ -41,10 +42,9 @@ class Corpus:
         self.random_seed_words_path = '../data/' + args.corpus_type + '/random_seed_words.pickle'
         self.pai_scatterplot_path = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pai_scatterplot.html'
         self.pai_histogram_path = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pai_histogram.html'
-        self.tf_path = '../data/' + args.corpus_type + '/tf.pickle'
-        self.idf_path = '../data/' + args.corpus_type + '/idf.pickle'
-        self.tf_idf_path = '../data/' + args.corpus_type + '/tf_idf.pickle'
-        
+        self.tf_idf_path = '../data/' + args.corpus_type + '/tf_idf_' + args.tf_idf_method + '.pickle'
+        self.tf_idf_scatter_plot = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_tf_idf_scatterplot_' + args.tf_idf_method + '.html'
+        self.nr_word_freq_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_nr_word_freq.pickle'
         self.context_windows = {'sight': [], 'hear': [], 'touch': [], 'taste': [], 'smell': []}
         self.descriptors = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.filtered_descriptors =  {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
@@ -53,9 +53,8 @@ class Corpus:
         self.random_sentences =  {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.random_contexts = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.random_seed_words = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
-        self.tf = {}
-        self.idf = {}
-        self.tf_idf = {}
+        self.tf_idf = pd.DataFrame(columns = ['word', 'modality', 'TF-IDF', 'word_freq'])
+        self.nr_word_freq = {}
         
        
     def read_file(self, input_path):
@@ -103,12 +102,11 @@ class Corpus:
             self.save_file(sentences, tokenized_path)
             end_time = time.time()
             logging.info(end_time - start_time)
-   
+        
             
     def process_doc(self,):
         vfunct = np.vectorize(self.extract_descriptors)
-        vfunct(self.corpus_df.tokenized_path, self.corpus_df.cw_df_path)       
-            
+        vfunct(self.corpus_df.tokenized_path, self.corpus_df.cw_df_path)  
             
     def extract_descriptors(self, tokenized_path, cw_df_path):
         # rerun with if statement to check if context exists or not 
@@ -270,50 +268,167 @@ class Corpus:
                         self.random_seed_words[modality][word] = [row['seed_word']]
                         self.random_contexts[modality][word] = [row['context_window']]
                         
-    def calculate_tf_idf(self,):
-        vfunct = np.vectorize(self.calculate_tf)
-        vfunct(self.corpus_df.tokenized_path)
-        self.save_file(self.tf, self.tf_path)
+    def calculate_tf_idf(self, method):
+        context_windows = self.read_file(self.context_windows_path)
+        word_freq = self.read_file(self.word_freq_path) 
+        self.word_freq = word_freq
+        if method == 'method_one':
+            tfs = {}
+            for modality, windows in context_windows.items():
+                words = [word for window in windows for word in window]
+                total_words = len(words)
+                counter = {}
+                for word in words: 
+                    if word in counter: 
+                        counter[word] += 1
+                    else:
+                        counter[word] = 1
+                counter = {key:value/total_words for key, value in counter.items()}
+                tfs[modality] = counter
+            
+            tf_idf = {}
+            for modality, tf in tfs.items():
+                idf = {}
+                for term, freq in tf.items():
+                    count = 1
+                    for sense_name, windows in context_windows.items():
+                        words = [word for window in windows for word in window]
+                        if term in words: 
+                            count += 1
+                    idf[term] = freq * np.log2(5/count)
+                tf_idf[modality] = idf
+            self.covert_tf_idf_dict_to_df(tf_idf)
+            self.save_tf_idf_plot()
+                
+        if method == 'method_two':
+            tfs = {}
+            for modality, windows in context_windows.items():
+                words = [word for window in windows for word in window]
+                total_words = len(words)
+                counter = {}
+                for word in words: 
+                    if word in counter: 
+                        counter[word] += 1
+                    else:
+                        counter[word] = 1
+                counter = {key:value/total_words for key, value in counter.items()}
+                tfs[modality] = counter 
+            
+            if (not exists(self.nr_word_freq_path)):
+                logging.info('Extracting Non-Relevant Windows')
+                vfunct = np.vectorize(self.extract_non_relevant_windows)
+                vfunct(self.corpus_df.tokenized_path, self.corpus_df.nr_cw_path) 
+                
+                logging.info('Counting Non-Relevant Words')
+                vfunct = np.vectorize(self.count_non_relevant_words)
+                vfunct(self.corpus_df.nr_cw_path)
+                self.save_file(self.nr_word_freq, self.nr_word_freq_path)
+            
+            self.nr_word_freq = self.read_file(self.nr_word_freq_path)
+            total_nr_words = sum(self.nr_word_freq.values())
+            self.nr_word_freq = {key:value/total_nr_words for key, value in self.nr_word_freq.items()}
+            tfs['nr_words'] = self.nr_word_freq
+            
+            tf_idf = {}
+            for modality, tf in tfs.items():
+                idf = {}
+                for term, freq in tf.items():
+                    count = 1
+                    for sense_name, windows in context_windows.items():
+                        words = [word for window in windows for word in window]
+                        if term in words: 
+                            count += 1
+                    if term in tfs['nr_words']:
+                        count += 1
+                    idf[term] = freq * np.log2(6/count)
+                tf_idf[modality] = idf
+            self.covert_tf_idf_dict_to_df(tf_idf)
+            self.save_tf_idf_plot()
+                
+        if method == 'method_three':
+            corpus = []
+            for modality, window_set in context_windows.items():
+                document = [str(word[0]) + "<>" + str(word[1]) for window in window_set for word in window]
+                corpus.append(document)
+            tf_idf_vect = TfidfVectorizer(lowercase= False, analyzer=lambda x:[w for w in x if w.split('<>')[0] not in stopwords])
+            X_train_tf_idf = tf_idf_vect.fit_transform(corpus)
+            terms = tf_idf_vect.get_feature_names_out()
+            tf_idf = self.dtm2dict(X_train_tf_idf ,terms)
+            self.covert_tf_idf_dict_to_df(tf_idf)
+            self.save_tf_idf_plot()
+            
         
-        vfunct = np.vectorize(self.calculate_idf)
-        vfunct(self.corpus_df.tokenized_path)
-        self.idf = {key:np.log2(self.corpus_df.tokenized_path.size/value) for key, value in self.idf.items()}
-        self.save_file(self.idf, self.idf_path)
-
+    def covert_tf_idf_dict_to_df(self, tf_idf):
+        filtered_descriptors = self.read_file(self.filtered_descriptors_path)
         
-        for tokenized_path, document_dict in self.tf.items():
-            document_tf_idf = {k:0 for k, v in document_dict.items()}
-            for word, tf in document_dict.items():
-                document_tf_idf[word] = tf * self.idf[word]
-            self.tf_idf[tokenized_path] = document_tf_idf
+        for modality, descriptor_dict in filtered_descriptors.items():
+            for word, count in descriptor_dict.items():
+                if word in tf_idf[modality]:
+                    self.tf_idf = self.tf_idf.append({'modality':modality,
+                                                      'word' : word,
+                                                      'TF-IDF' : tf_idf[modality][word],
+                                                      'word_freq': self.word_freq[word]}, ignore_index = True)
+        logging.info(self.tf_idf.head())
         self.save_file(self.tf_idf, self.tf_idf_path)
         
-    def calculate_tf(self, tokenized_path):
-        text = self.read_file(tokenized_path)
-        counter = {}
-        total_words = 0 
-        for i, sent in enumerate(text):
-            for j, word in enumerate(sent):
-                total_words += 1
-                if word in counter: 
-                    counter[word] += 1
-                else:
-                    counter[word] = 1
-                  
-        counter = {key:value/total_words for key, value in counter.items()}
-        self.tf[tokenized_path] = counter
         
-    def calculate_idf(self, tokenized_path):
+    def save_tf_idf_plot(self,):
+
+        fig = px.scatter(self.tf_idf, 
+                    x=self.tf_idf["word_freq"],
+                    y=self.tf_idf["TF-IDF"],
+                    color=self.tf_idf["modality"],
+                    hover_data=self.tf_idf.columns)
+        fig.write_html(self.tf_idf_scatter_plot)
+         
+            
+    def extract_non_relevant_windows(self, tokenized_path, nr_cw_path):
+        start_time = time.time()
+        window_size = 4
+        punct = ['.', ',', ':', ';', '"', '!', "?"]
+        ok_pos = ['ADJ', 'ADV', 'NOUN', 'VERB']
+        start_time = time.time()
         text = self.read_file(tokenized_path)
-        words = [word for sent in text for word in sent]
-        visited_words = []
-        for word in words: 
-            visited_words.append(word)
-            if word in self.idf:
-                self.idf[word] += 1 
+        non_relevant_windows = []
+
+        for i, sent in enumerate(text):
+            has_seed_word = False 
+            for j, word in enumerate(sent):
+                if word in self.seed_words['seed_word'].tolist():
+                    has_seed_word = True 
+                    break
+            if has_seed_word:
+                non_relevant_windows.append(sent)
+                        
+        end_time = time.time()
+        logging.info(end_time - start_time)
+        self.save_file(non_relevant_windows, nr_cw_path)
+        
+    def count_non_relevant_words(self, nr_cw_path):
+        start_time = time.time()
+        nr_cws = self.read_file(nr_cw_path)
+        words = [word for sent in nr_cws for word in sent]
+        for w in words: 
+            if w in self.nr_word_freq:
+                self.nr_word_freq[w] += 1
             else:
-                self.idf[word] = 1 
-                
+                self.nr_word_freq[w] = 1
+        end_time = time.time()
+        logging.info(end_time - start_time)
+        
+        
+    def dtm2dict(self, wm, feat_names):
+        wm = wm.toarray()
+        tf_idf = {}
+        for i, row in enumerate(wm):
+            doc_name = self.modalities[i]
+            idf = {}
+            for j, value in enumerate(row): 
+                word = (feat_names[j].split('<>')[0], feat_names[j].split('<>')[1])
+                idf[word] = value
+            tf_idf[doc_name] = idf 
+        return tf_idf 
+
                 
 def main(args):
     corpus = Corpus(args)
@@ -341,9 +456,9 @@ def main(args):
     if args.save_random_sentences == 'True':
         logging.info('--Saving random_sentences--')
         corpus.save_random_sentences() 
-    if args.calculate_tf_idf == 'True':
+    if args.tf_idf_method != 'False':
         logging.info('--Calculate TF-TDF--')
-        corpus.calculate_tf_idf()
+        corpus.calculate_tf_idf(args.tf_idf_method)
 
     
 if __name__=='__main__':
@@ -358,6 +473,6 @@ if __name__=='__main__':
     parser.add_argument('--calculate_PAI', type=str, default='False', help='calculate PAI value')
     parser.add_argument('--create_PAI_visuals', type=str, default='False', help='create PAI visuals')
     parser.add_argument('--save_random_sentences', type=str, default='False', help='save random sentences')
-    parser.add_argument('--calculate_tf_idf', type=str, default='False', help='calculate tf idf')
+    parser.add_argument('--tf_idf_method', type=str, default='False', help='calculate tf idf')
     args = parser.parse_args()
     main(args)    

@@ -25,6 +25,8 @@ class Model:
             self.corpus_df = self.corpus_df.loc[(self.corpus_df['Author Birth Century'] == '1900')]
         self.modalities = ['sight', 'hear', 'touch', 'taste', 'smell']
         self.top_descriptors = args.top_descriptors
+        self.filter_type = args.create_pca_graph 
+        self.tf_idf_method = args.tf_idf_method
         
         self.context_windows_path = '../data/' + args.corpus_type + '/context_windows.pickle'
         self.descriptors_path = '../data/' + args.corpus_type + '/descriptors.pickle'
@@ -40,11 +42,12 @@ class Model:
         self.random_sentences_path = '../data/' + args.corpus_type + '/random_sentences.pickle'
         self.random_contexts_path = '../data/' + args.corpus_type + '/random_contexts.pickle'
         self.random_seed_words_path = '../data/' + args.corpus_type + '/random_seed_words.pickle'
-        self.pca_visual_path = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pca_plot_' + str(self.top_descriptors) + '.html'
-        self.pca_visual_pdf = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pca_plot_' + str(self.top_descriptors) + '.pdf'
-        self.all_top_descriptors_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_all_top_descriptors_' + str(self.top_descriptors) + '.pickle'
-        self.top_xs_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_top_xs_' + str(self.top_descriptors) + '.pickle'
-        self.top_ys_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_top_ys_' + str(self.top_descriptors) + '.pickle'
+        self.pca_visual_path = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pca_plot_' + str(self.top_descriptors) + '_' + self.filter_type + '_' + self.tf_idf_method + '.html'
+        self.pca_visual_pdf = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pca_plot_' + str(self.top_descriptors) + '_' + self.filter_type  + '_' + self.tf_idf_method + '.pdf'
+        self.all_top_descriptors_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_all_top_descriptors_' + str(self.top_descriptors) + '_' + self.filter_type  + '_' + self.tf_idf_method + '.pickle'
+        self.top_xs_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_top_xs_' + str(self.top_descriptors) + '_' + self.filter_type  + '_' + self.tf_idf_method + '.pickle'
+        self.top_ys_path = '../data/' + args.corpus_type + '/' + args.corpus_type + '_top_ys_' + str(self.top_descriptors) + '_' + self.filter_type  + '_' + self.tf_idf_method + '.pickle'
+        self.tf_idf_path = '../data/' + args.corpus_type + '/tf_idf_' + self.tf_idf_method + '.pickle'
         
         self.context_windows =  {'sight': [], 'hear': [], 'touch': [], 'taste': [], 'smell': []}
         self.descriptors = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
@@ -55,6 +58,7 @@ class Model:
         self.random_sentences =  {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.random_contexts = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
         self.random_seed_words = {'sight': {}, 'hear': {}, 'touch': {}, 'taste': {}, 'smell': {}}
+        self.tf_idf = pd.DataFrame(columns = ['word', 'modality', 'TF-IDF', 'word_freq'])
 
         
     def read_file(self, input_path):
@@ -144,25 +148,14 @@ class Model:
         logging.info("Total variance explained:" + str(total_var))
         return pca
     
-    def create_pca_graph(self,):
-        filtered_descriptors = self.read_file(self.filtered_descriptors_path)
-        pai_df = self.read_file(self.pai_df_path)
-        descriptors_df = pd.DataFrame()
-
-        # order descriptors by PAI for each modality 
-        for modality in self.modalities:
+    def create_pca_graph(self):
         
-            pai = pai_df.loc[(pai_df['modality'] == modality)]
-            pai = pai.sort_values(by=['PAI'], ascending=False).reset_index(drop = True) 
-
-            descriptors_df = pd.concat([descriptors_df, pai])
-
-        descriptors_df = descriptors_df.reset_index(drop=True)
-        descriptors_df = descriptors_df.sort_values('PAI', ascending=False)
+        # order descriptors by filter_type
+        descriptors_df = self.order_descriptors()
         
-        # get top descriptors
+        # get top n descriptors
         if self.top_descriptors not in [0, 200, 300, 500]:
-            top_indices, top_descriptors = self.get_descriptors_within_cutoffs(descriptors_df)
+            top_indices, top_descriptors = self.get_descriptors_within_pai_cutoffs(descriptors_df)
         else:
             top_indices, top_descriptors = self.get_top_descriptors(descriptors_df)
         
@@ -174,7 +167,26 @@ class Model:
         # create visual
         self.create_visual(top_xs, top_descriptors, principleDf, top_indices)
         
-    def get_descriptors_within_cutoffs(self, descriptors_df):
+    def order_descriptors(self,):
+        filtered_descriptors = self.read_file(self.filtered_descriptors_path)
+        descriptors_df = pd.DataFrame()
+        
+        if self.filter_type == 'PAI':
+            filter_df = self.read_file(self.pai_df_path)
+        elif self.filter_type == 'TF-IDF': 
+            filter_df = self.read_file(self.tf_idf_path)
+
+        for modality in self.modalities:
+            df = filter_df.loc[(filter_df['modality'] == modality)]
+            df = df.sort_values(by=[self.filter_type], ascending=False)
+            descriptors_df = pd.concat([descriptors_df, df])
+
+        descriptors_df = descriptors_df.sort_values(self.filter_type, ascending=False)
+
+        return descriptors_df
+            
+        
+    def get_descriptors_within_pai_cutoffs(self, descriptors_df):
         cutoffs = pd.read_csv(self.pai_cutoff_path)
         top_each = []
         for modality in self.modalities:
@@ -194,8 +206,8 @@ class Model:
         top_each = []
         for modality in self.modalities:
             descriptors_sense = descriptors_df[descriptors_df["modality"] == modality]
-            top_each.append(descriptors_sense.head(n_each).dropna())
-        top_descriptors = pd.concat(top_each).sort_values('PAI', ascending=False)
+            top_each.append(descriptors_sense.head(n_each).dropna()) 
+        top_descriptors = pd.concat(top_each).sort_values(self.filter_type, ascending=False)
         top_indices = top_descriptors.index.values.tolist()
         return top_indices, top_descriptors
     
@@ -207,7 +219,6 @@ class Model:
             item = pd.DataFrame(data=item, columns=columns)
             principleDf = pd.concat([principleDf, item])
         principleDf = principleDf.reset_index(drop=True)
-
         return principleDf
         
     def get_xy(self, principleDf, descriptors_df, top_indices):
@@ -332,7 +343,7 @@ def main(args):
     if args.calculate_pca == 'True':
         logging.info('--Running PCA--')
         model.calculate_pca()
-    if args.create_pca_graph == 'True':
+    if args.create_pca_graph != 'False':
         logging.info('--Create pca graph--')
         model.create_pca_graph()
 
@@ -345,5 +356,6 @@ if __name__=='__main__':
     parser.add_argument('--top_descriptors', type=int, default=300, help='number of top descriptors')
     parser.add_argument('--calculate_pca', type=str, default='False', help='run pca')
     parser.add_argument('--create_pca_graph', type=str, default='False', help='create pca graph')
+    parser.add_argument('--tf_idf_method', type=str, default='False', help='select tf_idf method to use')
     args = parser.parse_args()
     main(args)
