@@ -328,6 +328,7 @@ class Corpus:
             total_nr_words = sum(self.nr_word_freq.values())
             self.nr_word_freq = {key:value/total_nr_words for key, value in self.nr_word_freq.items()}
             tfs['nr_words'] = self.nr_word_freq
+            logging.info(len(tfs['nr_words'] ))
             
             tf_idf = {}
             for modality, tf in tfs.items():
