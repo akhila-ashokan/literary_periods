@@ -9,6 +9,7 @@ from os.path import exists
 import plotly.express as px
 from sklearn.utils import shuffle
 from sklearn.feature_extraction.text import TfidfVectorizer
+from tqdm import tqdm
 
 ## TODO: Add timing decorator 
 
@@ -302,8 +303,10 @@ class Corpus:
                 
         if method == 'method_two':
             tfs = {}
+            context_windows_words = {}
             for modality, windows in context_windows.items():
                 words = [word for window in windows for word in window]
+                context_windows_words[modality] = words
                 total_words = len(words)
                 counter = {}
                 for word in words: 
@@ -328,22 +331,32 @@ class Corpus:
             total_nr_words = sum(self.nr_word_freq.values())
             self.nr_word_freq = {key:value/total_nr_words for key, value in self.nr_word_freq.items()}
             tfs['nr_words'] = self.nr_word_freq
-            logging.info(len(tfs['nr_words'] ))
-            
+                 
             tf_idf = {}
             for modality, tf in tfs.items():
                 idf = {}
-                for term, freq in tf.items():
-                    count = 1
+                logging.info(modality)
+                logging.info(len(tf.keys()))
+                for term, freq in tqdm(tf.items(), total = len(tfs.keys())):
+                    count = 0
                     for sense_name, windows in context_windows.items():
-                        words = [word for window in windows for word in window]
+                        words = context_windows_words[sense_name]
                         if term in words: 
                             count += 1
-                    if term in tfs['nr_words']:
-                        count += 1
-                    idf[term] = freq * np.log2(6/count)
+                    idf[term] = count
                 tf_idf[modality] = idf
+        
             self.covert_tf_idf_dict_to_df(tf_idf)
+            
+            for index, row in self.tf_idf.iterrows():
+                curr_val = row['TF-IDF'] 
+                if row['word'] in tfs['nr_words']:
+                    curr_val += 1 
+                freq = tfs[row['modality']][row['word']]
+                self.tf_idf.loc[index, 'TF-IDF'] = freq * np.log2(6/(curr_val+1))
+                
+            logging.info(self.tf_idf.head())
+            self.save_file(self.tf_idf, self.tf_idf_path)
             self.save_tf_idf_plot()
                 
         if method == 'method_three':
@@ -354,10 +367,24 @@ class Corpus:
             tf_idf_vect = TfidfVectorizer(lowercase= False, analyzer=lambda x:[w for w in x if w.split('<>')[0] not in stopwords])
             X_train_tf_idf = tf_idf_vect.fit_transform(corpus)
             terms = tf_idf_vect.get_feature_names_out()
-            tf_idf = self.dtm2dict(X_train_tf_idf ,terms)
+            tf_idf = self.dtm2dict(X_train_tf_idf, terms, self.modalities)
             self.covert_tf_idf_dict_to_df(tf_idf)
             self.save_tf_idf_plot()
             
+        if method == 'method_four':
+            corpus = []
+            for modality, window_set in context_windows.items():
+                document = [str(word[0]) + "<>" + str(word[1]) for window in window_set for word in window]
+                corpus.append(document)
+            self.nr_word_freq = self.read_file(self.nr_word_freq_path)
+            document = [str(key[0]) + "<>" + str(key[1]) for key, value in self.nr_word_freq.items() for i in range(0, value)]
+            corpus.append(document) 
+            tf_idf_vect = TfidfVectorizer(lowercase= False, analyzer=lambda x:[w for w in x if w.split('<>')[0] not in stopwords])
+            X_train_tf_idf = tf_idf_vect.fit_transform(corpus)
+            terms = tf_idf_vect.get_feature_names_out()
+            tf_idf = self.dtm2dict(X_train_tf_idf, terms, ['sight', 'hear', 'touch', 'taste', 'smell', 'nr_words'])
+            self.covert_tf_idf_dict_to_df(tf_idf)
+            self.save_tf_idf_plot()     
         
     def covert_tf_idf_dict_to_df(self, tf_idf):
         filtered_descriptors = self.read_file(self.filtered_descriptors_path)
@@ -418,11 +445,11 @@ class Corpus:
         logging.info(end_time - start_time)
         
         
-    def dtm2dict(self, wm, feat_names):
+    def dtm2dict(self, wm, feat_names, modalities):
         wm = wm.toarray()
         tf_idf = {}
         for i, row in enumerate(wm):
-            doc_name = self.modalities[i]
+            doc_name = modalities[i]
             idf = {}
             for j, value in enumerate(row): 
                 word = (feat_names[j].split('<>')[0], feat_names[j].split('<>')[1])
