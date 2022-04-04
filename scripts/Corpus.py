@@ -110,7 +110,6 @@ class Corpus:
         vfunct(self.corpus_df.tokenized_path, self.corpus_df.cw_df_path)  
             
     def extract_descriptors(self, tokenized_path, cw_df_path):
-        # rerun with if statement to check if context exists or not 
         window_size = 4
         punct = ['.', ',', ':', ';', '"', '!', "?"]
         ok_pos = ['ADJ', 'ADV', 'NOUN', 'VERB']
@@ -169,14 +168,11 @@ class Corpus:
     def apply_descriptor_threshold(self,threshold):
         start_time = time.time()
         descriptors = self.read_file(self.descriptors_path)
-        counts = []
         
         for modality, descriptor_dict in descriptors.items():
             logging.info('Length of descriptor list for ' + modality + ': ' +  str(len(descriptors[modality])))
             logging.info(set(list(descriptor_dict.values())))
             for word, count in descriptor_dict.items():
-                if count not in counts:
-                    counts.append(count)
                 if count >= threshold: 
                     self.filtered_descriptors[modality][word] = count
             logging.info('Length of filtered descriptor list for ' + modality + ': ' +  str(len(self.filtered_descriptors[modality])))
