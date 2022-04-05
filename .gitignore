@@ -1,0 +1,10 @@
+# ignore all logs
+*.log
+*.npz
+*.zip
+*.npy
+data/1700
+data/1800
+data/1900
+data/full_corpus
+data/gutenberg-dammit-files
