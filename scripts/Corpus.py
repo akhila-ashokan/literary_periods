@@ -11,8 +11,6 @@ from sklearn.utils import shuffle
 from sklearn.feature_extraction.text import TfidfVectorizer
 from tqdm import tqdm
 
-## TODO: Add timing decorator 
-
 nlp = spacy.load("en_core_web_sm", exclude=["ner", "lemmatizer", "textcat", "entity_linker", "entity_ruler", "textcat_multilabel", "morphologizer", "attribute_ruler", "transformer"])
 nlp.disable_pipe("parser")
 nlp.enable_pipe("senter")

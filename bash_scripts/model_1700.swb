@@ -2,7 +2,7 @@
 #SBATCH --job-name="model_1700"
 #SBATCH --output="model_1700.%j.%N.out"
 #SBATCH --error="model_1700.%j.%N.err"
-#SBATCH --partition=gpux1
+#SBATCH --partition=cpun1
 #SBATCH --time=24
 
-python /home/ashokan2/literary_periods/scripts/Model.py --corpus_type 1700 --run_model True --top_descriptors 500 --calculate_pca True --create_pca_graph True
+python /home/ashokan2/literary_periods/scripts/Model.py --corpus_type 1700 --run_model False --calculate_pca False --create_pca_graph True --tf_idf_method method_one
