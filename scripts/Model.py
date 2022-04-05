@@ -270,7 +270,7 @@ class Model:
             y=all_top_descriptors.columns[-1],
             hover_data=all_top_descriptors.columns[:-1 * k],
             custom_data=all_top_descriptors.columns[:-1 * k],
-            title=self.corpus_type + " Literary Period Top " +  + str(top_descriptors_num) + " Descriptors - 2 Component PCA"
+            title=self.corpus_type + " Literary Period Top " + str(top_descriptors_num) + " Descriptors - 2 Component PCA")
         fig.update_traces(marker=dict(size=12,))
         logging.info('--Saving PCA Graph--')
         fig.write_html(pca_visual_path)
@@ -278,7 +278,7 @@ class Model:
         fig, ax = plt.subplots()
         for i,d in all_top_descriptors.groupby('modality'):
             ax.scatter(d['Principal Component 1'], d['Principal Component 2'], label=i)
-        plt.title(self.corpus_type + " Literary Period Top " +  + str(top_descriptors_num) + " Descriptors - 2 Component PCA")
+        plt.title(self.corpus_type + " Literary Period Top " + str(top_descriptors_num) + " Descriptors - 2 Component PCA")
         plt.xlabel('Principal Component 1')
         plt.ylabel('Principal Component 2')
         plt.legend(loc="upper right")

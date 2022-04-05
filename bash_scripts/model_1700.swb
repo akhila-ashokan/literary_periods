@@ -5,4 +5,4 @@
 #SBATCH --partition=cpun1
 #SBATCH --time=24
 
-python /home/ashokan2/literary_periods/scripts/Model.py --corpus_type 1700 --run_model False --calculate_pca False --create_pca_graph True --tf_idf_method method_one
+python /home/ashokan2/literary_periods/scripts/Model.py --corpus_type 1700 --run_model False --calculate_pca False --create_pca_graph TF-IDF --tf_idf_method method_four
