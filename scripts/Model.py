@@ -251,7 +251,7 @@ class Model:
         
         pca_visual_path = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pca_plot_' + str(top_descriptors_num) + '_' + self.filter_type + '_' + self.tf_idf_method + '.html'
         pca_visual_pdf = '../visuals/' + args.corpus_type + '/' + args.corpus_type + '_pca_plot_' + str(top_descriptors_num) + '_' + self.filter_type  + '_' + self.tf_idf_method + '.pdf'
-        all_top_descriptors_path = '../data/' + args.corpus_type + '/git/' + args.corpus_type + '_all_top_descriptors_' + str(top_descriptors_num) + '_' + self.filter_type  + '_' + self.tf_idf_method + '.pickle'
+        all_top_descriptors_path = '../git_data/' + args.corpus_type + '/' + args.corpus_type + '_all_top_descriptors_' + str(top_descriptors_num) + '_' + self.filter_type  + '_' + self.tf_idf_method + '.pickle'
         
         top_descriptors = self.set_word_info(top_descriptors, top_xs )
             
