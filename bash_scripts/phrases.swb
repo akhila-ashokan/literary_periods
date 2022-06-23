@@ -1,0 +1,8 @@
+#!/bin/bash
+#SBATCH --job-name="phrases"
+#SBATCH --output="phrases.%j.%N.out"
+#SBATCH --error="phrases.%j.%N.err"
+#SBATCH --partition=cpun1
+#SBATCH --time=24
+
+python /home/ashokan2/literary_periods/phrase2vec/Phrases.py
